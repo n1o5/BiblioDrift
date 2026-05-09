@@ -77,8 +77,8 @@
  * ==============================================================================
  */
 
-const API_BASE = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE) ? CONFIG.API_BASE : 'https://www.googleapis.com/books/v1/volumes';
-const MOOD_API_BASE = (typeof CONFIG !== 'undefined' && CONFIG.MOOD_API_BASE) ? CONFIG.MOOD_API_BASE : '/api/v1';
+// API_BASE and MOOD_API_BASE are declared globally in config.js (loaded first).
+// Do NOT re-declare them here — use the globals from config.js directly.
 const IS_DEV = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms));
@@ -132,10 +132,6 @@ function showToast(message, type = 'info') {
 }
 
 /**
- * Robust Wrapper for LocalStorage
- * Prevents application crashes when the 5MB quota is exceeded.
- */
-/**
  * Robust Wrapper for Storage (LocalStorage + IndexedDB Fallback)
  * Prevents application data loss and handles browser storage wipes/quotas.
  */
@@ -188,12 +184,12 @@ const SafeStorage = {
         try {
             localStorage.setItem(key, value);
         } catch (error) {
-            const isQuotaError = 
+            const isQuotaError =
                 error instanceof DOMException && (
-                error.code === 22 || 
-                error.code === 1014 || 
-                error.name === 'QuotaExceededError' || 
-                error.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+                    error.code === 22 ||
+                    error.code === 1014 ||
+                    error.name === 'QuotaExceededError' ||
+                    error.name === 'NS_ERROR_DOM_QUOTA_REACHED');
 
             if (isQuotaError) {
                 showToast("Local storage full! Saving to secure backup.", "info");
@@ -229,9 +225,6 @@ const SafeStorage = {
     get(key) {
         try {
             const value = localStorage.getItem(key);
-            if (value !== null) {
-                this.touchKey(key, value);
-            }
             return value;
         } catch (e) {
             return null;
@@ -253,11 +246,11 @@ const SafeStorage = {
                     request.onsuccess = () => resolve(request.result);
                     request.onerror = () => resolve(null);
                 });
-                
+
                 if (val) {
                     if (IS_DEV) console.log("[Storage] Restored from IndexedDB backup");
                     // Try to restore to LocalStorage for future sync calls
-                    try { localStorage.setItem(key, val); } catch(e) {}
+                    try { localStorage.setItem(key, val); } catch (e) { }
                 }
             } catch (e) {
                 console.warn("Backup retrieval failed", e);
@@ -399,6 +392,21 @@ class BookRenderer {
         this.libraryManager = libraryManager;
     }
 
+    renderSkeletons(container, count = 5, type = 'card') {
+        if (!container) return;
+        let html = '';
+        if (type === 'card') {
+            html = Array(count).fill(0).map(() => `
+                <div class="book-skeleton skeleton"></div>
+            `).join('');
+        } else if (type === 'spine') {
+            html = Array(count).fill(0).map(() => `
+                <div class="spine-skeleton skeleton"></div>
+            `).join('');
+        }
+        container.innerHTML = html;
+    }
+
     async createBookElement(bookData, shelf = null) {
         const { id, volumeInfo } = bookData;
         const progress = typeof bookData.progress === 'number' ? bookData.progress : 0;
@@ -471,6 +479,11 @@ class BookRenderer {
                         <!-- Safe data injection using escaped values -->
                         <div style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--text-main);">${safeTitle}</div>
                         <div class="handwritten-note" style="margin-bottom: 0.8rem; font-style: italic; color: var(--wood-dark);">${safeVibe}</div>
+                        ${bookData.moods && bookData.moods.length > 0 ? `
+                        <div class="book-mood-tags" style="margin-bottom: 0.8rem; display: flex; flex-wrap: wrap; gap: 4px;">
+                            ${bookData.moods.map(m => `<span style="font-size: 0.6rem; background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 10px;"><i class="fa-solid ${this.getMoodIcon(m)}"></i> ${m}</span>`).join('')}
+                        </div>
+                        ` : ''}
                         <div class="book-blurb" style="font-size: 0.8rem; line-height: 1.4; color: var(--text-muted); text-align: justify;">${safeDescription}</div>
                     </div>
                     ${shelf === 'current' ? `
@@ -482,7 +495,6 @@ class BookRenderer {
                         <button class="btn-icon add-btn" title="Add to Library"><i class="fa-regular fa-heart"></i></button>
                         <button class="btn-icon info-btn" title="Read Details"><i class="fa-solid fa-info"></i></button>
                         <button class="btn-icon share-btn" title="Share Book"><i class="fa-solid fa-share-nodes"></i></button>
-                        <button class="btn-icon" title="Flip Back" onclick="event.stopPropagation(); this.closest('.book').classList.remove('flipped'); const s = new Audio('../assets/sounds/page-flip.mp3'); s.volume=0.5; s.play();"><i class="fa-solid fa-rotate-left"></i></button>
                         <button class="btn-icon flip-back-btn" title="Flip Back"><i class="fa-solid fa-rotate-left"></i></button>
                     </div>
                 </div>
@@ -569,16 +581,16 @@ class BookRenderer {
 
         // Async fetch AI Vibe - Hydrate the UI
         this.fetchAIVibe(title, authors, volumeInfo.description || "").then(aiVibe => {
-             if (aiVibe) {
-                 // Strip any accidental prefix the AI might return
-                 const cleanVibe = aiVibe.replace(/^(Bookseller's Note:|Note:|Recommendation:)\s*/i, "");
-                 
-                 const noteEl = scene.querySelector('.handwritten-note');
-                 if (noteEl) {
+            if (aiVibe) {
+                // Strip any accidental prefix the AI might return
+                const cleanVibe = aiVibe.replace(/^(Bookseller's Note:|Note:|Recommendation:)\s*/i, "");
+
+                const noteEl = scene.querySelector('.handwritten-note');
+                if (noteEl) {
                     noteEl.innerHTML = cleanVibe;
                     noteEl.classList.add('fade-in'); // Optional animation hook
-                 }
-             }
+                }
+            }
         });
 
         return scene;
@@ -615,24 +627,24 @@ class BookRenderer {
         if (lowerCats.includes('fiction') || lowerText.includes('novel')) return "A compelling narrative voice.";
         if (lowerCats.includes('history') || lowerText.includes('war')) return "A journey into the past.";
         if (lowerCats.includes('science') || lowerText.includes('space')) return "Opens your mind to new possibilities.";
-        
+
         // 2. Generic fallbacks (Deterministic hash)
         const vibes = [
-            "Perfect for a rainy afternoon.", 
-            "A quiet companion for coffee.", 
+            "Perfect for a rainy afternoon.",
+            "A quiet companion for coffee.",
             "Intense and thought-provoking.",
             "Will make you laugh and cry.",
             "Best devoured in one sitting.",
             "Prepare to be surprised."
         ];
-        
+
         // Simple hash to pick a stable vibe for this book text
         let hash = 0;
         for (let i = 0; i < text.length; i++) {
             hash = ((hash << 5) - hash) + text.charCodeAt(i);
             hash |= 0; // Convert to 32bit integer
         }
-        
+
         return vibes[Math.abs(hash) % vibes.length];
     }
 
@@ -643,7 +655,26 @@ class BookRenderer {
         document.getElementById('modal-img').src = book.volumeInfo.imageLinks?.thumbnail.replace('http:', 'https:') || '';
         document.getElementById('modal-title').textContent = book.volumeInfo.title;
         document.getElementById('modal-author').textContent = book.volumeInfo.authors?.join(", ") || "Unknown Author";
-        document.getElementById('modal-summary').textContent = book.volumeInfo.description || "No description available.";
+        
+        const summaryEl = document.getElementById('modal-summary');
+        if (summaryEl) {
+            // Show skeletons while AI is "thinking"
+            summaryEl.innerHTML = `
+                <div class="text-skeleton skeleton"></div>
+                <div class="text-skeleton skeleton" style="width: 90%"></div>
+            `;
+
+            // Fetch the AI vibe to populate the Insight box
+            this.fetchAIVibe(book.volumeInfo.title, book.volumeInfo.authors?.join(", ") || "", book.volumeInfo.description || "").then(vibe => {
+                if (vibe) {
+                    const cleanVibe = vibe.replace(/^(Bookseller's Note:|Note:|Recommendation:)\s*/i, "");
+                    summaryEl.innerHTML = `<p class="fade-in">${cleanVibe}</p>`;
+                } else {
+                    // Fallback to description if AI vibe fails
+                    summaryEl.textContent = book.volumeInfo.description || "No description available.";
+                }
+            });
+        }
 
         const addBtn = document.getElementById('modal-add-btn');
         const shareBtn = document.getElementById('modal-share-btn');
@@ -687,11 +718,80 @@ class BookRenderer {
 
         modal.showModal();
         document.getElementById('closeModalBtn').onclick = () => modal.close();
+
+        // Emotion Tagging UI
+        const emotionContainer = document.createElement('div');
+        emotionContainer.className = 'emotion-tagging-section';
+        emotionContainer.innerHTML = `
+            <h3 class="modal-section-title">How does this book make you feel?</h3>
+            <div class="emotion-tags-container">
+                ${['Melancholic', 'Cozy', 'Tense', 'Inspiring', 'Whimsical', 'Dark', 'Adventurous'].map(mood => {
+            const isActive = book.moods && book.moods.includes(mood);
+            return `<span class="emotion-tag ${isActive ? 'active' : ''}" data-mood="${mood}">
+                        <i class="fa-solid ${this.getMoodIcon(mood)}"></i> ${mood}
+                    </span>`;
+        }).join('')}
+            </div>
+        `;
+        // Insert before the buttons
+        const modalBody = modal.querySelector('.modal-body') || modal.querySelector('.book-details-content');
+        const actions = modal.querySelector('.modal-actions') || modal.querySelector('.book-actions-section');
+        
+        if (actions) {
+            // Remove existing tagging section if re-opening
+            const existing = actions.parentNode.querySelector('.emotion-tagging-section');
+            if (existing) existing.remove();
+            
+            actions.parentNode.insertBefore(emotionContainer, actions);
+        } else if (modalBody) {
+            // Fallback
+            const existing = modalBody.querySelector('.emotion-tagging-section');
+            if (existing) existing.remove();
+            modalBody.appendChild(emotionContainer);
+        }
+
+        // Add tag toggle listeners
+        emotionContainer.querySelectorAll('.emotion-tag').forEach(tag => {
+            tag.onclick = async () => {
+                const mood = tag.dataset.mood;
+                if (!book.moods) book.moods = [];
+
+                const index = book.moods.indexOf(mood);
+                if (index > -1) {
+                    book.moods.splice(index, 1);
+                    tag.classList.remove('active');
+                } else {
+                    book.moods.push(mood);
+                    tag.classList.add('active');
+                }
+
+                if (this.libraryManager) {
+                    await this.libraryManager.updateBook(book.id, { moods: book.moods });
+                }
+            };
+        });
+    }
+
+    getMoodIcon(mood) {
+        const icons = {
+            'Melancholic': 'fa-cloud-showers-heavy',
+            'Cozy': 'fa-mug-hot',
+            'Tense': 'fa-bolt',
+            'Inspiring': 'fa-lightbulb',
+            'Whimsical': 'fa-wand-magic-sparkles',
+            'Dark': 'fa-moon',
+            'Adventurous': 'fa-compass'
+        };
+        return icons[mood] || 'fa-tag';
     }
 
     async renderCuratedSection(query, elementId, maxResults = 5) {
         const container = document.getElementById(elementId);
         if (!container) return;
+
+        // Show skeletons while loading
+        this.renderSkeletons(container, maxResults);
+
         try {
             const client = window.GoogleBooksClient;
             const data = client
@@ -739,9 +839,26 @@ class BookRenderer {
 
     async renderBookCards(container, books) {
         container.innerHTML = '';
+        if (!books || books.length === 0) {
+            container.innerHTML = '<p class="empty-state">No books available for this collection.</p>';
+            return;
+        }
+
         for (const book of books) {
-            const bookElement = await this.createBookElement(book);
-            container.appendChild(bookElement);
+            try {
+                const bookElement = await this.createBookElement(book);
+                if (bookElement) {
+                    container.appendChild(bookElement);
+                }
+            } catch (err) {
+                console.error("Failed to render individual book:", book.id, err);
+                // Continue to next book instead of breaking the row
+            }
+        }
+
+        // If nothing was rendered, show error
+        if (container.children.length === 0) {
+            container.innerHTML = '<p class="empty-state">Failed to load books. Please check your connection.</p>';
         }
     }
 }
@@ -756,36 +873,7 @@ class LibraryManager {
             finished: []
         };
 
-        /**
-         * ==============================================================================
-         * ISSUE FIX: HARDCODED API BASE URL DUPLICATION
-         * ==============================================================================
-         * 
-         * Background Context & Issue:
-         * ---------------------------
-         * Previously, this class had its own hardcoded backend URL assigned right here:
-         * `this.apiBase = 'http://localhost:5000/api/v1';`
-         * 
-         * This implementation was problematic for several critical reasons:
-         * 1. Duplication of Truth: The global constant `MOOD_API_BASE` already exists 
-         *    to define the backend server location. Having a second hardcoded value 
-         *    here meant that if the API URL needed to change (e.g., deploying from dev 
-         *    to production), developers had to remember to manually update it in 
-         *    multiple disparate files. This led to frustrating inconsistencies, bugs, 
-         *    and broken network requests when only one reference was updated.
-         * 2. Security & Environment Portability: Hardcoding an `http://localhost` 
-         *    URL meant the application structure was rigidly tied to a local machine, 
-         *    and would cause Mixed Content warnings or blockages in production 
-         *    environments that require secure HTTPS connections.
-         * 
-         * The Resolution:
-         * ---------------
-         * We now strictly reuse the global `MOOD_API_BASE` constant. By centralizing 
-         * the configuration to a single source of truth, we ensure complete consistency 
-         * across the entire application architecture while dynamically adapting to the 
-         * secure network requirements of the deployed environment.
-         * ==============================================================================
-         */
+
         this.apiBase = MOOD_API_BASE; // Fixed: Use global constant (Issue #7)
 
         // Asynchronous initialization
@@ -808,7 +896,7 @@ class LibraryManager {
 
         // 3. Setup sorting and trigger initial fast render
         this.setupSorting();
-        
+
         if (document.getElementById('shelf-want')) {
             // Fast Render from local data
             this.renderShelf('want', 'shelf-want');
@@ -879,7 +967,7 @@ class LibraryManager {
 
                     if (existing) {
                         const localBook = existing.book;
-                        
+
                         // Conflict Resolution Logic:
                         // If backend has a higher version, it wins.
                         if (item.version > (localBook.version || 0)) {
@@ -977,7 +1065,7 @@ class LibraryManager {
                 if (IS_DEV) {
                     console.log("Sync result:", data);
                 }
-                
+
                 if (data.conflicts > 0) {
                     showToast(`Synced ${data.message} (${data.conflicts} conflicts resolved by server)`, "info");
                 } else {
@@ -1004,6 +1092,53 @@ class LibraryManager {
                 this.sortLibrary(e.target.value);
             });
         }
+
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                this.filterLibrary(query);
+            });
+        }
+    }
+
+    filterLibrary(query) {
+        ['current', 'want', 'finished'].forEach(shelf => {
+            const containerId = `shelf-${shelf}-3d`;
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            const books = this.library[shelf];
+            const filtered = books.filter(book => {
+                const title = (book.volumeInfo.title || "").toLowerCase();
+                const author = (book.volumeInfo.authors || []).join(" ").toLowerCase();
+                const moods = (book.moods || []).join(" ").toLowerCase();
+                return title.includes(query) || author.includes(query) || moods.includes(query);
+            });
+
+            this.renderFilteredShelf(shelf, containerId, filtered);
+        });
+    }
+
+    async renderFilteredShelf(shelfName, elementId, books) {
+        const container = document.getElementById(elementId);
+        if (!container) return;
+
+        container.innerHTML = '';
+        if (books.length === 0) {
+            container.innerHTML = '<div class="empty-state">No matching books found.</div>';
+            return;
+        }
+
+        try {
+            const renderer = new BookRenderer(this);
+            for (const book of books) {
+                const el = await renderer.createBookElement(book, shelfName);
+                container.appendChild(el);
+            }
+        } catch (error) {
+            console.error(`[Library] Error rendering filtered shelf:`, error);
+        }
     }
 
     sortLibrary(criteria) {
@@ -1013,14 +1148,23 @@ class LibraryManager {
                     return new Date(b.date_added || 0) - new Date(a.date_added || 0);
                 case 'date_asc':
                     return new Date(a.date_added || 0) - new Date(b.date_added || 0);
+                case 'title':
                 case 'title_asc':
                     return (a.volumeInfo.title || "").localeCompare(b.volumeInfo.title || "");
                 case 'title_desc':
                     return (b.volumeInfo.title || "").localeCompare(a.volumeInfo.title || "");
+                case 'author':
                 case 'author_asc':
                     const authorA = (a.volumeInfo.authors && a.volumeInfo.authors[0]) || "";
                     const authorB = (b.volumeInfo.authors && b.volumeInfo.authors[0]) || "";
                     return authorA.localeCompare(authorB);
+                case 'mood':
+                    // Sort by primary mood if available
+                    const moodA = (a.moods && a.moods[0]) || "zzz"; // push untagged to bottom
+                    const moodB = (b.moods && b.moods[0]) || "zzz";
+                    return moodA.localeCompare(moodB);
+                case 'rating':
+                    return (b.volumeInfo.averageRating || 0) - (a.volumeInfo.averageRating || 0);
                 default:
                     return 0;
             }
@@ -1029,7 +1173,12 @@ class LibraryManager {
         ['current', 'want', 'finished'].forEach(shelf => {
             if (this.library[shelf]) {
                 this.library[shelf].sort(sortFn);
-                this.renderShelf(shelf, `shelf-${shelf}`);
+                // If we have a dedicated 3D renderer, let it handle the UI to avoid duplicate rendering
+                if (window.bookshelf3D && typeof window.bookshelf3D.refreshShelves === 'function') {
+                    window.bookshelf3D.refreshShelves();
+                } else {
+                    this.renderShelf(shelf, `shelf-${shelf}-3d`);
+                }
             }
         });
     }
@@ -1108,7 +1257,7 @@ class LibraryManager {
 
         // 1. Update Local State
         Object.assign(book, updates);
-        
+
         // Local "Finished" logic
         if (updates.progress === 100 && shelf !== 'finished') {
             // Remove from current, add to finished
@@ -1116,7 +1265,7 @@ class LibraryManager {
             this.library.finished.push(book);
             showToast(`Congrats! You finished ${book.volumeInfo.title}!`, "success");
         }
-        
+
         this.saveLocally();
 
         // 2. Update Backend
@@ -1194,8 +1343,8 @@ class LibraryManager {
             // Do we have it?
             if (user && book.db_id) {
                 try {
-                    await fetch(`${this.apiBase}/library/${book.db_id}`, { 
-                        method: 'DELETE', 
+                    await fetch(`${this.apiBase}/library/${book.db_id}`, {
+                        method: 'DELETE',
                         headers: this.getAuthHeaders(),
                         credentials: 'include'
                     });
@@ -1250,36 +1399,42 @@ class ThemeManager {
     constructor() {
         this.themeKey = 'bibliodrift_theme';
         this.toggleBtn = document.getElementById('themeToggle');
-        const stored = SafeStorage.get(this.themeKey);
+        // Read directly from localStorage — no abstraction layer
+        const stored = localStorage.getItem(this.themeKey);
         this.currentTheme = stored === 'night' ? 'night' : 'light';
-
+        // Named handler so we can remove & re-add cleanly (no stacking)
+        this._handler = this._onClick.bind(this);
         this.init();
     }
 
+    _onClick() {
+        this.currentTheme = this.currentTheme === 'night' ? 'light' : 'night';
+        this.applyTheme(this.currentTheme);
+        localStorage.setItem(this.themeKey, this.currentTheme);
+    }
 
     init() {
         if (!this.toggleBtn) return;
-
         this.applyTheme(this.currentTheme);
-
-        this.toggleBtn.addEventListener('click', () => {
-            this.currentTheme = this.currentTheme === 'night' ? 'light' : 'night';
-            this.applyTheme(this.currentTheme);
-            SafeStorage.set(this.themeKey, this.currentTheme);
-        });
+        // Remove before add to prevent duplicate listeners if init is called twice
+        this.toggleBtn.removeEventListener('click', this._handler);
+        this.toggleBtn.addEventListener('click', this._handler);
     }
 
-
     applyTheme(theme) {
-        const icon = this.toggleBtn.querySelector('i');
         if (theme === 'night') {
             document.documentElement.setAttribute('data-theme', 'night');
-            icon.classList.remove('fa-moon');
-            icon.classList.add('fa-sun');
         } else {
             document.documentElement.removeAttribute('data-theme');
-            icon.classList.remove('fa-sun');
-            icon.classList.add('fa-moon');
+        }
+        // Update icon — use className directly, cannot fail
+        if (this.toggleBtn) {
+            const icon = this.toggleBtn.querySelector('i');
+            if (icon) {
+                icon.className = theme === 'night'
+                    ? 'fa-solid fa-sun'
+                    : 'fa-solid fa-moon';
+            }
         }
     }
 }
@@ -1340,13 +1495,17 @@ class GenreManager {
     async fetchBooks(genre) {
         if (!this.booksGrid) return;
 
-        // Show loading
-        this.booksGrid.innerHTML = `
-            <div class="genre-loading">
-                <i class="fa-solid fa-spinner fa-spin"></i>
-                <span>Finding best ${genre} books...</span>
-            </div>
-        `;
+        // Show loading skeletons
+        if (window.renderer) {
+            window.renderer.renderSkeletons(this.booksGrid, 10);
+        } else {
+            this.booksGrid.innerHTML = `
+                <div class="genre-loading">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span>Finding best ${genre} books...</span>
+                </div>
+            `;
+        }
 
         try {
             const client = window.GoogleBooksClient;
@@ -1376,27 +1535,7 @@ class GenreManager {
     async renderBooks(books) {
         this.booksGrid.innerHTML = '';
 
-        /**
-         * ==============================================================================
-         * ISSUE FIX: REDUNDANT LIBRARYMANAGER INSTANTIATION
-         * ==============================================================================
-         * 
-         * Background Context & Issue:
-         * ---------------------------
-         * Previously, a new `LibraryManager` was instantiated every time `renderBooks` 
-         * was called inside `GenreManager`. 
-         * 
-         * The problem was that creating a new `LibraryManager` triggers a fresh 
-         * `syncWithBackend()` network call upon initialization. Calling this repeatedly 
-         * every time the genre modal books are rendered wastes bandwidth and can 
-         * potentially overwrite or corrupt an in-progress synchronization state.
-         * 
-         * The Resolution:
-         * ---------------
-         * We now pass the existing globally shared `libManager` instance into 
-         * `GenreManager` at construction time and reuse it here via `this.libraryManager`.
-         * ==============================================================================
-         */
+
         const renderer = new BookRenderer(this.libraryManager);
         for (const book of books) {
             const el = await renderer.createBookElement(book);
@@ -1406,14 +1545,23 @@ class GenreManager {
 }
 
 // Init
+// --- Application Bootstrap ---
 document.addEventListener('DOMContentLoaded', async () => {
-    // Load config first to get API keys
-    await loadConfig();
+    console.log('🚀 BiblioDrift Initializing...');
 
+    // 1. Initialize Managers
     const libManager = new LibraryManager();
-    window.libManager = libManager; // Expose for Auth
+    window.libManager = libManager;
 
-    // Auth Page Logic (Toggle Login/Register)
+    window.renderer = new BookRenderer(libManager);
+    const themeManager = new ThemeManager();
+
+    // 2. Load Config (Non-blocking)
+    loadConfig();
+
+
+
+    // --- AUTH LOGIC ---
     const toggleLink = document.querySelector('.toggle-link');
     const authTitle = document.querySelector('.auth-container h2');
     const authBtn = document.querySelector('.auth-btn');
@@ -1421,51 +1569,43 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (toggleLink && authTitle && authBtn && authForm) {
         let isLogin = true;
-        authForm.dataset.mode = 'login'; // Default
-
-        // Create Username Input for Register mode
-        const usernameInput = document.createElement('input');
-        usernameInput.type = 'text';
-        usernameInput.id = 'username';
-        usernameInput.className = 'auth-input';
-        usernameInput.placeholder = 'Username';
-        usernameInput.style.display = 'none';
-
-        // Insert before email
-        const emailInput = document.getElementById('email');
-        if (emailInput) {
-            authForm.insertBefore(usernameInput, emailInput);
-        }
+        authForm.dataset.mode = 'login';
 
         toggleLink.addEventListener('click', () => {
             isLogin = !isLogin;
             authForm.dataset.mode = isLogin ? 'login' : 'register';
-
-            if (isLogin) {
-                authTitle.textContent = 'Welcome Back';
-                authBtn.textContent = 'Sign In';
-                toggleLink.textContent = 'No account? Create one.';
-                usernameInput.style.display = 'none';
-                usernameInput.removeAttribute('required');
-            } else {
-                authTitle.textContent = 'Create Account';
-                authBtn.textContent = 'Sign Up';
-                toggleLink.textContent = 'Already have an account? Sign In.';
-                usernameInput.style.display = 'block';
-                usernameInput.setAttribute('required', 'true');
-            }
+            authTitle.textContent = isLogin ? 'Sign In' : 'Join BiblioDrift';
+            authBtn.textContent = isLogin ? 'Sign In' : 'Create Account';
+            toggleLink.textContent = isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In";
         });
     }
 
-    const renderer = new BookRenderer(libManager);
-    const themeManager = new ThemeManager();
     const genreManager = new GenreManager(libManager);
     genreManager.init();
     const exportBtn = document.getElementById("export-library");
-
     if (exportBtn) {
         const isLibraryPage = document.getElementById("shelf-want");
         exportBtn.style.display = isLibraryPage ? "inline-flex" : "none";
+
+        exportBtn.addEventListener("click", () => {
+            const library = SafeStorage.get("bibliodrift_library");
+            if (!library) {
+                showToast("Library is empty!", "info");
+                return;
+            }
+            const blob = new Blob([library], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `bibliodrift_library_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            URL.revokeObjectURL(url);
+            showToast("Library exported successfully!", "success");
+        });
     }
 
 
@@ -1484,7 +1624,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const performSearch = () => {
         if (searchInput && searchInput.value.trim()) {
-            window.location.href = `index.html?q=${encodeURIComponent(searchInput.value.trim())}`;
+            // Only redirect to discovery search if we're not already on the library page 
+            // where search is handled by the local library filter.
+            if (!window.location.pathname.includes('library.html')) {
+                window.location.href = `index.html?q=${encodeURIComponent(searchInput.value.trim())}`;
+            }
         }
     };
 
@@ -1501,7 +1645,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const urlParams = new URLSearchParams(window.location.search);
     const query = urlParams.get('q');
-    
+
     // Fill search box if query exists
     if (query && searchInput) {
         searchInput.value = query;
@@ -1518,17 +1662,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             </section>`;
         renderer.renderCuratedSection(query, 'search-results', 20);
     } else if (document.getElementById('row-rainy')) {
+        console.log('📚 Initializing Curated Discovery Sections...');
         (async () => {
-    await renderer.renderCuratedSection('subject:mystery atmosphere', 'row-rainy');
-    await delay(1500);
-
-    await renderer.renderCuratedSection('authors:amitav ghosh|authors:arundhati roy|subject:india', 'row-indian');
-    await delay(1500);
-
-    await renderer.renderCuratedSection('subject:classic fiction', 'row-classics');
-
-    await renderer.renderCuratedSection('subject:fiction', 'row-genre');
-})();
+            try {
+                await renderer.renderCuratedSection('subject:mystery atmosphere', 'row-rainy');
+                await delay(500);
+                await renderer.renderCuratedSection('authors:arundhati roy|subject:india', 'row-indian');
+                await delay(500);
+                await renderer.renderCuratedSection('subject:classic fiction', 'row-classics');
+                await delay(500);
+                await renderer.renderCuratedSection('subject:fiction', 'row-fiction');
+                console.log('✅ Discovery shelves populated.');
+            } catch (err) {
+                console.error('❌ Critical error during shelf initialization:', err);
+            }
+        })();
     }
 
     // Re-rendering is now handled by libManager.init() asynchronously to ensure
@@ -1658,39 +1806,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-
         backToTopBtn.addEventListener('click', () => {
             window.scrollTo({
                 top: 0,
                 behavior: 'smooth'
             });
         });
-
-        const exportBtn = document.getElementById("export-library");
-        if (exportBtn) {
-            exportBtn.addEventListener("click", () => {
-                const library = SafeStorage.get("bibliodrift_library");
-                if (!library) {
-                    showToast("Library is empty!", "info");
-                    return;
-                }
-                const blob = new Blob([library], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `bibliodrift_library_${new Date().toISOString().slice(0, 10)}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-
-                URL.revokeObjectURL(url);
-                showToast("Library exported successfully!", "success");
-            });
-        }
     }
+
+
 });
 
+/**
+ * ==============================================================================
+ * SECURITY FIX: CSRF PROTECTION & SESSION MANAGEMENT
+ * ==============================================================================
+ * 
+ * Issue:
+ * ------
+ * The auth form has no CSRF protection — it directly POSTs credentials to the API 
+ * from the browser.
+ * 
+ * Why it matters:
+ * ---------------
+ * Without a CSRF token, a malicious third-party page could trick authenticated 
+ * users into making authenticated requests. Also, isLoggedIn was previously stored 
+ * as a plain string 'true' in localStorage, meaning any script could forge the 
+ * login state by setting this key.
+ * 
+ * Fix:
+ * ----
+ * Move the authenticated session indicator to an HttpOnly cookie managed by the 
+ * backend, and validate the JWT on every protected API call (which is already 
+ * done server-side — the frontend just needs to stop relying on the localStorage 
+ * flag for access control decisions).
+ * ==============================================================================
+ */
 async function handleAuth(event) {
     event.preventDefault();
     const form = event.target;
@@ -1776,15 +1927,6 @@ async function handleAuth(event) {
 function enableTapEffects() {
     if (!('ontouchstart' in window)) return;
 
-    document.querySelectorAll('.book-scene').forEach(scene => {
-        const book = scene.querySelector('.book');
-        const overlay = scene.querySelector('.glass-overlay');
-        scene.addEventListener('click', () => {
-            book.classList.toggle('tap-effect');
-            if (overlay) overlay.classList.toggle('tap-overlay');
-        });
-    });
-
     document.querySelectorAll('.btn-icon').forEach(btn => {
         btn.addEventListener('click', () => {
             btn.classList.toggle('tap-btn-icon');
@@ -1832,7 +1974,7 @@ document.addEventListener("click", (e) => {
     const scene = e.target.closest(".book-scene");
     if (!scene) return;
 
-        if (IS_DEV) {
+    if (IS_DEV) {
         console.log("BOOK CLICK");
     }
 
@@ -1898,37 +2040,37 @@ const KeyboardShortcuts = {
                 if (IS_DEV) {
                     console.log('Navigating to next book...');
                 }
-                // TODO: Implement next book navigation
+                this.navigateToNextBook();
                 break;
             case 'navigatePrev':
                 if (IS_DEV) {
                     console.log('Navigating to previous book...');
                 }
-                // TODO: Implement previous book navigation
+                this.navigateToPreviousBook();
                 break;
             case 'selectBook':
                 if (IS_DEV) {
                     console.log('Selecting current book...');
                 }
-                // TODO: Implement book selection
+                this.selectCurrentBook();
                 break;
             case 'addToWantRead':
                 if (IS_DEV) {
                     console.log('Adding to Want to Read list...');
                 }
-                // TODO: Implement add to want read
+                this.moveCurrentBookToShelf('want');
                 break;
             case 'markCurrentlyReading':
                 if (IS_DEV) {
                     console.log('Marking as Currently Reading...');
                 }
-                // TODO: Implement mark as reading
+                this.moveCurrentBookToShelf('current');
                 break;
             case 'addToFavorites':
                 if (IS_DEV) {
                     console.log('Adding to Favorites...');
                 }
-                // TODO: Implement add to favorites
+                this.moveCurrentBookToShelf('finished');
                 break;
             case 'closeModal':
                 if (IS_DEV) {
@@ -1963,6 +2105,129 @@ const KeyboardShortcuts = {
             Object.entries(this.shortcuts)
                 .map(([key, data]) => `${key}: ${data.description}`)
                 .join('\n'));
+    },
+
+    // Helper: Get all visible book spine elements
+    getVisibleBooks() {
+        return Array.from(document.querySelectorAll('.book-spine-3d'));
+    },
+
+    // Helper: Get current focused book index
+    getFocusedBookIndex() {
+        const books = this.getVisibleBooks();
+        const focused = document.querySelector('.book-spine-3d.focused');
+        if (focused) {
+            return books.indexOf(focused);
+        }
+        return -1;
+    },
+
+    // Helper: Set focus on a book spine
+    setBookFocus(bookElement) {
+        // Remove previous focus
+        document.querySelectorAll('.book-spine-3d.focused').forEach(el => {
+            el.classList.remove('focused');
+        });
+
+        if (bookElement) {
+            bookElement.classList.add('focused');
+            bookElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+            // Get the book data from the element
+            const bookId = bookElement.dataset.bookId;
+            if (window.bookshelfRenderer && bookId) {
+                // Find the book data by traversing the library
+                const storage = JSON.parse(localStorage.getItem('bibliodrift_library')) || { current: [], want: [], finished: [] };
+                for (const shelf of ['current', 'want', 'finished']) {
+                    const book = storage[shelf].find(b => b.id === bookId);
+                    if (book) {
+                        window.bookshelfRenderer.currentBook = book;
+                        break;
+                    }
+                }
+            }
+        }
+    },
+
+    // Navigate to next book
+    navigateToNextBook() {
+        const books = this.getVisibleBooks();
+        if (books.length === 0) {
+            showToast('No books to navigate', 'info');
+            return;
+        }
+
+        let currentIndex = this.getFocusedBookIndex();
+        let nextIndex = (currentIndex + 1) % books.length;
+
+        this.setBookFocus(books[nextIndex]);
+    },
+
+    // Navigate to previous book
+    navigateToPreviousBook() {
+        const books = this.getVisibleBooks();
+        if (books.length === 0) {
+            showToast('No books to navigate', 'info');
+            return;
+        }
+
+        let currentIndex = this.getFocusedBookIndex();
+        let prevIndex = currentIndex <= 0 ? books.length - 1 : currentIndex - 1;
+
+        this.setBookFocus(books[prevIndex]);
+    },
+
+    // Select/open the current book
+    selectCurrentBook() {
+        if (window.bookshelfRenderer && window.bookshelfRenderer.currentBook) {
+            window.bookshelfRenderer.openModal(window.bookshelfRenderer.currentBook);
+            showToast('Opening book details', 'info');
+        } else {
+            showToast('No book selected', 'info');
+        }
+    },
+
+    // Move current book to a specific shelf
+    moveCurrentBookToShelf(targetShelf) {
+        if (!window.bookshelfRenderer || !window.bookshelfRenderer.currentBook) {
+            showToast('No book selected', 'info');
+            return;
+        }
+
+        const currentBook = window.bookshelfRenderer.currentBook;
+        const storage = JSON.parse(localStorage.getItem('bibliodrift_library')) || { current: [], want: [], finished: [] };
+
+        // Find current shelf
+        let currentShelf = null;
+        for (const shelf of ['current', 'want', 'finished']) {
+            const found = storage[shelf].find(b => b.id === currentBook.id);
+            if (found) {
+                currentShelf = shelf;
+                break;
+            }
+        }
+
+        if (!currentShelf) {
+            showToast('Book not found in library', 'error');
+            return;
+        }
+
+        if (currentShelf === targetShelf) {
+            showToast('Book is already on that shelf', 'info');
+            return;
+        }
+
+        // Move the book
+        window.bookshelfRenderer.moveBook(currentBook.id, currentShelf, targetShelf);
+
+        // Show appropriate feedback
+        const shelfNames = {
+            'current': 'Currently Immersed',
+            'want': 'Anticipated Journeys',
+            'finished': 'Lifetime Favorites'
+        };
+
+        showToast(`Moved to ${shelfNames[targetShelf]}`, 'success');
     }
 };
 

@@ -12,7 +12,11 @@ This document provides sample request and response payloads for BiblioDrift APIs
 
 ```json
 {
-  "message": "I want something cozy for a rainy evening"
+  "message": "I want something cozy for a rainy evening",
+  "history": [
+    {"role": "user", "content": "Hello!"},
+    {"role": "assistant", "content": "Welcome to my shop. How can I help you find a story today?"}
+  ]
 }
 ```
 

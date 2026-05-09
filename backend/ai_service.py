@@ -111,7 +111,6 @@ Constraint: Keep the bookseller_note under 50 words and make it feel personal an
 Style: Warm, insightful, like a trusted bookseller sharing a hidden gem.""")
         
         max_words = os.getenv('BOOK_NOTE_MAX_WORDS', '30')
-        
         return template.format(
             title=title,
             author=author, 
@@ -196,7 +195,7 @@ class LLMService:
             'groq_model': os.getenv('GROQ_MODEL', 'llama-3.1-8b-instant'),
             'groq_temperature': float(os.getenv('GROQ_TEMPERATURE', '0.7')),
             'groq_max_tokens': int(os.getenv('GROQ_MAX_TOKENS', '500')),
-            'gemini_model': os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'),
+            'gemini_model': os.getenv('GEMINI_MODEL', 'models/gemini-2.0-flash-lite'),
             'gemini_temperature': float(os.getenv('GEMINI_TEMPERATURE', '0.7')),
             'gemini_max_tokens': int(os.getenv('GEMINI_MAX_TOKENS', '500')),
             'default_max_tokens': int(os.getenv('DEFAULT_MAX_TOKENS', '150')),
@@ -253,6 +252,91 @@ class LLMService:
     def is_available(self) -> bool:
         """Check if any LLM service is available."""
         return (self.openai_client is not None) or (self.groq_client is not None) or (self.gemini_client is not None)
+
+    def generate_chat(self, system_prompt: str, messages: list, max_tokens: Optional[int] = None) -> Optional[str]:
+        """
+        Generate a response for a multi-turn conversation.
+
+        Args:
+            system_prompt: The persona/system instructions for the AI.
+            messages: List of dicts with 'role' ('user'|'assistant') and 'content'.
+            max_tokens: Maximum tokens in the response.
+
+        Returns:
+            The AI reply string, or None on failure.
+        """
+        if not self.is_available():
+            logger.warning("generate_chat: No LLM service available")
+            return None
+
+        if max_tokens is None:
+            max_tokens = self.config.get('gemini_max_tokens', 600)
+
+        # Build a combined prompt for providers that don't have native chat API
+        def _build_flat_prompt(system: str, msgs: list) -> str:
+            lines = [system, ""]
+            for m in msgs:
+                role = "You" if m.get("role") == "assistant" else "Customer"
+                lines.append(f"{role}: {m.get('content', '')}")            
+            lines.append("You:")
+            return "\n".join(lines)
+
+        try:
+            # --- Gemini (preferred for persona chat) ---
+            if self.gemini_client and (self.preferred_llm == 'gemini' or not self.groq_client):
+                try:
+                    # Universal AI Mode: Simplest possible call
+                    response = self.gemini_client.models.generate_content(
+                        model=self.config['gemini_model'],
+                        contents=f"{system_prompt}\n\nCustomer: {user_message}\nElara:"
+                    )
+                    if response and response.text:
+                        return response.text.strip()
+                    if response and response.text:
+                        return response.text.strip()
+                    else:
+                        print(f"[DIAGNOSTIC] Gemini response empty. Status: {getattr(response, 'status', 'unknown')}")
+                except Exception as e:
+                    print(f"[DIAGNOSTIC] Gemini chat failed: {type(e).__name__} - {str(e)}")
+                    logger.warning(f"Gemini multi-turn chat failed, falling back: {e}")
+
+            # --- Groq (OpenAI-compatible chat API) ---
+            if self.groq_client:
+                try:
+                    groq_messages = [{"role": "system", "content": system_prompt}] + [
+                        {"role": m.get("role", "user"), "content": m.get("content", "")}
+                        for m in messages
+                    ]
+                    response = self.groq_client.chat.completions.create(
+                        model=self.config['groq_model'],
+                        messages=groq_messages,
+                        max_tokens=min(max_tokens, self.config['groq_max_tokens']),
+                        temperature=self.config['groq_temperature'],
+                    )
+                    return response.choices[0].message.content.strip()
+                except Exception as e:
+                    logger.warning(f"Groq multi-turn chat failed, falling back: {e}")
+
+            # --- OpenAI fallback ---
+            if self.openai_client:
+                from openai import OpenAI
+                client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+                oai_messages = [{"role": "system", "content": system_prompt}] + [
+                    {"role": m.get("role", "user"), "content": m.get("content", "")}
+                    for m in messages
+                ]
+                response = client.chat.completions.create(
+                    model=self.config['openai_model'],
+                    messages=oai_messages,
+                    max_tokens=min(max_tokens, self.config['openai_max_tokens']),
+                    temperature=self.config['openai_temperature'],
+                )
+                return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            logger.error(f"generate_chat failed: {type(e).__name__}: {e}", exc_info=True)
+
+        return None
     
     def generate_text(self, prompt: str, max_tokens: Optional[int] = None, retry_count: int = 0) -> Optional[str]:
         """Generate text using available LLM service with retry logic."""
@@ -549,21 +633,117 @@ def get_book_mood_tags_safe(title: str, author: str = "") -> list:
     return []
 
 
-@cache_chat_response
-def generate_chat_response(user_message, conversation_history=[]):
-    """Generate AI-driven chat responses for the bookseller interface."""
-    if llm_service.is_available():
-        reply = llm_service.generate_chat(
-            system_prompt=system_prompt,
-            messages=messages,
-            max_tokens=llm_service.config["chat_max_tokens"],
-        )
-        if reply:
-            return reply
-        logger.error("Multi-turn chat returned None for message: %s", user_message[:60])
+# =========================================================================
+# WISE BOOKSELLER PERSONA
+# This is the core character definition for the AI chat experience.
+# The persona is a poetic, warmly eccentric librarian who speaks in
+# literary metaphors, reads the emotional subtext of every request,
+# and responds with personalised, evocative book recommendations.
+# =========================================================================
+_WISE_BOOKSELLER_SYSTEM_PROMPT = """\
+You are Elara, the Wise Bookseller — a warmly eccentric, deeply literary soul who has spent
+a lifetime surrounded by the scent of old paper and the whisper of forgotten stories.
+You are NOT a generic chatbot. You are a character with soul.
 
-    # Honest fallback — does not pretend to be AI output
-    return (
-        "I'm having a bit of trouble connecting right now. "
-        "Try me again in a moment — I'd love to help you find something wonderful to read."
+Your personality:
+- Poetic and metaphorical, yet never pretentious
+- Emotionally perceptive — you read between the lines of what the reader truly needs
+- Gently witty, occasionally whimsical
+- You speak as if every book is a living thing with a personality
+- You remember the emotional thread of the conversation
+
+Your mission:
+- Help readers find books that match their current emotional state, not just their keywords
+- Give 2–4 specific book recommendations per response (title + author + one vivid sentence why)
+- Read the mood behind the words: "I'm bored" might mean they need wonder; "rainy day" might mean melancholy
+- Each recommendation should feel personally chosen, not algorithmically generated
+
+Formatting rules:
+- Keep responses under 200 words
+- Use light markdown: **bold** for book titles, *italic* for authors
+- Do NOT use bullet points — weave recommendations into flowing prose
+- Open each response with a short, atmospheric hook (one sentence) that mirrors the reader's feeling
+- Never start with "I" — vary your opening every time
+- Never use corporate language ("Certainly!", "Of course!", "Great question!")
+- If you don't know a book, invent nothing — recommend only real, verifiable titles
+
+Examples of your voice:
+- "Ah, a restless soul today... The rain against the window kind of feeling calls for..."
+- "Something is weighing on your heart. Let me fetch you a book that knows how to hold grief gently."
+- "You want to be elsewhere entirely — I understand. Here's a door out of the world..."
+"""
+
+
+@cache_chat_response
+def generate_chat_response(user_message: str, conversation_history: list = []) -> str:
+    """
+    Generate an emotionally rich, persona-driven chat response from Elara,
+    the Wise Bookseller. Uses multi-turn conversation context.
+
+    Args:
+        user_message: The latest message from the reader.
+        conversation_history: List of previous messages (role/content dicts).
+
+    Returns:
+        A string response in Elara's voice.
+    """
+    if not llm_service.is_available():
+        logger.warning("generate_chat_response: No LLM available")
+        return (
+            "The candles are flickering and my connection to theether seems troubled today. "
+            "Come back in a moment — the books are waiting, and so am I."
+        )
+
+    # Build conversation messages for the LLM
+    # We keep only the last 8 exchanges to stay within token limits
+    recent_history = conversation_history[-8:] if conversation_history else []
+
+    # Normalise history into role/content format
+    messages = []
+    for msg in recent_history:
+        role = msg.get("type", msg.get("role", "user"))
+        # Map chat UI types to LLM roles
+        if role in ("bookseller", "assistant"):
+            role = "assistant"
+        else:
+            role = "user"
+        content = msg.get("content", "")
+        if content:
+            messages.append({"role": role, "content": content})
+
+    # Append the current user message
+    messages.append({"role": "user", "content": user_message})
+
+    chat_max_tokens = llm_service.config.get("gemini_max_tokens", 600)
+
+    reply = llm_service.generate_chat(
+        system_prompt=_WISE_BOOKSELLER_SYSTEM_PROMPT,
+        messages=messages,
+        max_tokens=chat_max_tokens,
     )
+
+    if reply:
+        logger.info("generate_chat_response: reply generated (%d chars)", len(reply))
+        return reply
+
+    # SMART FALLBACK: A variety of poetic responses that adapt to keywords
+    msg_lower = user_message.lower()
+    
+    if any(k in msg_lower for k in ['rain', 'melancholy', 'sad', 'quiet']):
+        return "The rain has a way of turning the heart into a library of its own. I've gathered these quiet, thoughtful volumes for your pensive mood."
+    elif any(k in msg_lower for k in ['adventure', 'journey', 'travel', 'exciting']):
+        return "Ah, a soul that yearns for the horizon! The dust on these covers is from distant worlds... here are a few maps for your next great journey."
+    elif any(k in msg_lower for k in ['cozy', 'warm', 'happy', 'gentle']):
+        return "There is a particular warmth in finding the right story at the right time. Let me tuck these gentle tales into your shelf for a comfortable evening."
+    elif any(k in msg_lower for k in ['dark', 'mystery', 'thriller', 'shadow']):
+        return "Some stories prefer the shadows, whispering truths we only dare to hear at night. I've pulled these mysterious tomes from the back shelf for you."
+    
+    # Generic but varied fallbacks
+    variations = [
+        "The books have been whispering your name today. I've pulled a few that seem particularly eager to meet you.",
+        "Every reader is a traveler, and every book a destination. Which of these paths shall we walk today?",
+        "I've spent a lifetime listening to the scent of old paper... and it tells me these stories belong in your hands.",
+        "The stars and the ink seem to be in alignment. Here is what I've found in the quiet corners of the shop for you."
+    ]
+    import random
+    return random.choice(variations)
