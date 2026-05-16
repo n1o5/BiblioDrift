@@ -179,16 +179,52 @@ header {
     gap: 0.5rem;
 }
 
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
 .nav-links a {
     text-decoration: none;
     color: var(--text-muted);
-    margin-left: 2rem;
-    transition: color 0.3s ease;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding-bottom: 10px;
+    transition: color 0.25s ease;
 }
 
 .nav-links a:hover,
 .nav-links a.active {
-    color: var(--text-main);
+    color: #ff5a1f;
+}
+
+.nav-links a::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #ff5a1f;
+    box-shadow: 0 0 0 3px rgba(255, 90, 31, 0.14);
+    opacity: 0;
+    transform: translateX(-50%) scale(0.35);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.nav-links a:hover::after {
+    opacity: 0.45;
+    transform: translateX(-50%) scale(0.75);
+}
+
+.nav-links a.active::after {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
 }
 
 /* === ANIMATED HOVER TOOLTIPS FOR NAVIGATION (NEW) === */
@@ -198,48 +234,19 @@ header {
 }
 
 .tooltip-text {
-    position: absolute;
-    left: 50%;
-    bottom: calc(100% + 8px);
-    transform: translateX(-50%) scale(0.95) translateY(6px);
-    padding: 10px 14px;
-    background: #fffaf3;
-    color: #2b2b2b;
-    font-size: 13px;
-    font-weight: 500;
-    white-space: nowrap;
-    border-radius: 10px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: all 0.25s ease;
-    z-index: 9999;
+    display: none;
 }
 
 .tooltip-text::after {
-    content: "";
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%) rotate(45deg);
-    width: 12px;
-    height: 12px;
-    background: #fffaf3;
-    border-left: 1px solid rgba(0, 0, 0, 0.08);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    display: none;
 }
 
 .tooltip:hover .tooltip-text {
-    opacity: 1;
-    visibility: visible;
-    transform: translateX(-40%) scale(1) translateY(0);
+    display: none;
 }
 
 .tooltip-text i {
-    margin-right: 5px;
-    color: var(--accent-gold);
+    display: none;
 }
 
 main {
