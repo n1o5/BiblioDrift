@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Ambient Sanctuary Logic for BiblioDrift
- * Handles background ambient sounds (Rain, Fireplace) with volume control.
+ * Handles background ambient sounds (Rain, Fireplace, Ocean) with volume control.
  * FIXED: Volume now persists across pages using localStorage
  */
 
@@ -10,16 +10,26 @@ class AmbientManager {
         this.panel = document.getElementById('ambientPanel');
         this.rainToggle = document.getElementById('rainToggle');
         this.fireToggle = document.getElementById('fireToggle');
+        this.oceanToggle = document.getElementById('oceanToggle');
+        this.stormToggle = document.getElementById('stormToggle');
         this.volumeSlider = document.getElementById('ambientVolume');
 
         // Defensive check: only initialize if elements exist
         if (!this.toggleBtn || !this.panel) return;
 
         this.rainAudio = new Audio('https://archive.org/download/Red_Library_Nature_Rain/R22-25-General%20Rain.mp3');
+        this.rainAudio.preload = 'auto';
         this.fireAudio = new Audio('https://archive.org/download/1-hour-cozy-fire-crackling-fireplace-320/1%20hour%20Cozy%20Fire%20Crackling%20Fireplace%20320.mp3');
+        this.fireAudio.preload = 'auto';
+        this.oceanAudio = new Audio('../assets/sounds/calm-ocean-waves.mp3');
+        this.oceanAudio.preload = 'auto';
+        this.stormAudio = new Audio('../assets/sounds/Rain-and-storm.mp3');
+        this.stormAudio.preload = 'auto';
         
         this.rainAudio.loop = true;
         this.fireAudio.loop = true;
+        this.oceanAudio.loop = true;
+        this.stormAudio.loop = true;
 
         // Prevent the weird 'high bass' or thunder sound at the very end of the rain track
         this.rainAudio.addEventListener('timeupdate', () => {
@@ -35,6 +45,7 @@ class AmbientManager {
             if (this.audioUnlocked) return;
             this.rainAudio.play().then(() => { this.rainAudio.pause(); }).catch(e => {});
             this.fireAudio.play().then(() => { this.fireAudio.pause(); }).catch(e => {});
+            this.oceanAudio.play().then(() => { this.oceanAudio.pause(); }).catch(e => {});
             console.log("Audio Context Unlocked");
             this.audioUnlocked = true;
             window.removeEventListener('click', this.unlockAudio);
@@ -45,57 +56,9 @@ class AmbientManager {
         this.loadVolume();
         this.loadAudioStates();
         this.init();
-    }
-
-    /**
-     * Load volume preference from localStorage
-     */
-    loadVolume() {
-        const savedVolume = localStorage.getItem('bibliodrift_ambient_volume');
-        const volume = savedVolume !== null ? parseFloat(savedVolume) : 0.5;
-        
-        // Set audio volumes
-        this.rainAudio.volume = volume;
-        this.fireAudio.volume = volume;
-        
-        // Set slider to match
-        if (this.volumeSlider) {
-            this.volumeSlider.value = volume;
-        }
-        
-        console.log(`Loaded ambient volume: ${volume}`);
-    }
-    /**
-     * Load audio states from localStorage
-     */
-    loadAudioStates() {
-        const rainState = localStorage.getItem('bibliodrift_rain_state');
-        const fireState = localStorage.getItem('bibliodrift_fire_state');
-        
-        if (rainState === 'true') {
-            this.rainToggle.checked = true;
-            this.rainAudio.play().catch(e => {});
-        }
-        
-        if (fireState === 'true') {
-            this.fireToggle.checked = true;
-            this.fireAudio.play().catch(e => {});
-        }
-    }
-    
-    /**
-     * Save audio state to localStorage
-     */
-    saveAudioState(type, isPlaying) {
-        localStorage.setItem(`bibliodrift_${type}_state`, isPlaying.toString());
-    }
-
-    /**
-     * Save volume preference to localStorage
-     */
-    saveVolume(volume) {
-        localStorage.setItem('bibliodrift_ambient_volume', volume.toString());
-        console.log(`Saved ambient volume: ${volume}`);
+        // Ensure volume is set immediately
+        this.rainAudio.volume = 0.5;
+        this.fireAudio.volume = 0.5;
     }
 
     init() {
@@ -145,13 +108,51 @@ class AmbientManager {
             }
         });
 
+        // Ocean Waves Toggle
+        this.oceanToggle.addEventListener('change', () => {
+            if (this.oceanToggle.checked) {
+                this.oceanAudio.currentTime = 0;
+                this.oceanAudio.play()
+                    .then(() => console.log("Ocean audio playing"))
+                    .catch(e => {
+                        console.error("Ocean audio failed:", e);
+                        if (typeof showToast === 'function') {
+                            showToast("Audio playback blocked. Click anywhere to enable.", "info");
+                        }
+                    });
+            } else {
+                this.oceanAudio.pause();
+            }
+        });
+
+        // Stormy Rain Toggle
+        this.stormToggle.addEventListener('change', () => {
+            if (this.stormToggle.checked) {
+                this.stormAudio.currentTime = 0;
+                this.stormAudio.play()
+                    .then(() => console.log("Storm audio playing"))
+                    .catch(e => {
+                        console.error("Storm audio failed:", e);
+                        if (typeof showToast === 'function') {
+                            showToast("Audio playback blocked. Click anywhere to enable.", "info");
+                        }
+                    });
+            } else {
+                this.stormAudio.pause();
+            }
+        });
+
         // FIXED: Volume Control - now saves to localStorage
         this.volumeSlider.addEventListener('input', () => {
             const volume = parseFloat(this.volumeSlider.value);
             this.rainAudio.volume = volume;
             this.fireAudio.volume = volume;
-            this.saveVolume(volume); // Save to localStorage
         });
+
+        // Initial sync
+        const startVolume = parseFloat(this.volumeSlider.value) || 0.5;
+        this.rainAudio.volume = startVolume;
+        this.fireAudio.volume = startVolume;
     }
 }
 
