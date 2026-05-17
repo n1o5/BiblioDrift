@@ -142,12 +142,25 @@ class AmbientManager {
         });
 
         // Volume Control
+        this.updateVolumeUI = (val) => {
+            const pct = Math.round((val || 0) * 100);
+            // update track fill using inline background gradient
+            this.volumeSlider.style.background = `linear-gradient(90deg, var(--accent-gold) ${pct}%, rgba(0,0,0,0.12) ${pct}%)`;
+            // add transient class to animate thumb pop
+            this.volumeSlider.classList.add('volume-animate');
+            clearTimeout(this._volAnimTimeout);
+            this._volAnimTimeout = setTimeout(() => {
+                this.volumeSlider.classList.remove('volume-animate');
+            }, 380);
+        };
+
         this.volumeSlider.addEventListener('input', () => {
             const volume = parseFloat(this.volumeSlider.value);
             this.rainAudio.volume = volume;
             this.fireAudio.volume = volume;
             this.oceanAudio.volume = volume;
             this.stormAudio.volume = volume;
+            this.updateVolumeUI(volume);
         });
 
         // Initial sync
@@ -156,6 +169,8 @@ class AmbientManager {
         this.fireAudio.volume = startVolume;
         this.oceanAudio.volume = startVolume;
         this.stormAudio.volume = startVolume;
+        // initialize UI fill
+        this.updateVolumeUI(startVolume);
     }
 }
 

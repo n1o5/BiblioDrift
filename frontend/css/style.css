@@ -4565,11 +4565,17 @@ main {
     display: none;
     flex-direction: column;
     gap: 1rem;
+    /* Prepare for animated entrance */
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+    transition: opacity 260ms cubic-bezier(.2,.9,.3,1), transform 260ms cubic-bezier(.2,.9,.3,1);
     z-index: 10002;
 }
 
 .ambient-panel.active {
     display: flex !important;
+    opacity: 1 !important;
+    transform: translateY(0) scale(1) !important;
 }
 
 .ambient-option {
@@ -4584,6 +4590,148 @@ main {
     align-items: center;
     gap: 10px;
     font-size: 0.95rem;
+}
+
+/* Improved alignment: use a two-column grid so labels line up and controls align consistently */
+.ambient-panel .ambient-option,
+.ambient-panel .volume-control {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.ambient-panel .ambient-option span,
+.ambient-panel .volume-control label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-main);
+}
+
+/* Make switches slightly larger and center their internal toggle */
+.switch {
+    width: 44px;
+    height: 26px;
+}
+
+.slider {
+    border-radius: 999px;
+    background-color: rgba(68,68,68,0.9);
+}
+
+.slider:before {
+    height: 18px;
+    width: 18px;
+    left: 4px;
+    bottom: 4px;
+}
+
+input:checked + .slider {
+    background-color: var(--accent-gold);
+}
+
+input:checked + .slider:before {
+    transform: translateX(18px);
+}
+
+/* Quick pop when a toggle is enabled */
+input:checked + .slider {
+    animation: togglePop 220ms cubic-bezier(.2,.9,.3,1);
+}
+
+@keyframes togglePop {
+    0% { transform: scale(0.96); }
+    60% { transform: scale(1.04); }
+    100% { transform: scale(1); }
+}
+
+/* Staggered fade-in for options when panel opens */
+.ambient-panel.active .ambient-option,
+.ambient-panel.active .volume-control {
+    opacity: 0;
+    transform: translateY(6px);
+    animation: optionFade 360ms cubic-bezier(.2,.9,.3,1) forwards;
+}
+.ambient-panel.active .ambient-option:nth-child(1) { animation-delay: 0.06s; }
+.ambient-panel.active .ambient-option:nth-child(2) { animation-delay: 0.12s; }
+.ambient-panel.active .ambient-option:nth-child(3) { animation-delay: 0.18s; }
+.ambient-panel.active .ambient-option:nth-child(4) { animation-delay: 0.24s; }
+.ambient-panel.active .volume-control { animation-delay: 0.3s; }
+
+@keyframes optionFade {
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Button press micro-interaction */
+#ambientToggle {
+    transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+#ambientToggle:active {
+    transform: scale(0.96) rotate(-6deg);
+}
+
+/* Accessible focus for switches */
+.switch input:focus-visible + .slider {
+    box-shadow: 0 0 0 4px rgba(212,175,55,0.16);
+}
+
+/* Volume slider styling */
+.ambient-panel input[type="range"] {
+    -webkit-appearance: none;
+    width: 130px;
+    height: 6px;
+    background: rgba(0,0,0,0.12);
+    border-radius: 999px;
+    outline: none;
+}
+
+.ambient-panel input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--accent-gold);
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    cursor: pointer;
+}
+
+/* Animated track fill and thumb pop when volume changes */
+.ambient-panel input[type="range"] {
+    background: linear-gradient(90deg, var(--accent-gold) 50%, rgba(0,0,0,0.12) 50%);
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    transition: background 360ms cubic-bezier(.2,1,.22,1);
+}
+
+.ambient-panel input.volume-animate::-webkit-slider-thumb {
+    transform: scale(1.12);
+    transition: transform 360ms cubic-bezier(.2,1,.22,1);
+}
+
+.ambient-panel input.volume-animate::-moz-range-thumb {
+    transform: scale(1.12);
+    transition: transform 360ms cubic-bezier(.2,1,.22,1);
+}
+
+/* Fallback for Firefox: smooth track color via background */
+.ambient-panel input[type="range"]::-moz-range-track {
+    background: transparent;
+}
+
+/* Responsive ambient panel: full width on very small screens */
+@media (max-width: 420px) {
+    .ambient-panel {
+        right: 1rem;
+        bottom: 70px;
+        width: min(92vw, 320px);
+        padding: 0.9rem;
+    }
+
+    .ambient-panel input[type="range"] {
+        width: 100%;
+    }
 }
 
 .switch {
