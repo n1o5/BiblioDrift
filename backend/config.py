@@ -120,6 +120,27 @@ class AIServiceConfig:
         )
 
 
+@dataclass
+class RedisConfig:
+    """Redis configuration for caching and rate limiting."""
+    url: str
+    max_memory: str
+    eviction_policy: str
+    socket_timeout: float
+    connect_timeout: float
+    
+    @classmethod
+    def from_env(cls) -> 'RedisConfig':
+        """Create Redis config from environment variables."""
+        return cls(
+            url=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+            max_memory=os.getenv('REDIS_MAXMEMORY', '512mb'),
+            eviction_policy=os.getenv('REDIS_EVICTION_POLICY', 'allkeys-lru'),
+            socket_timeout=float(os.getenv('REDIS_SOCKET_TIMEOUT', '2.0')),
+            connect_timeout=float(os.getenv('REDIS_CONNECT_TIMEOUT', '2.0'))
+        )
+
+
 class Config:
     """Base configuration class."""
     
@@ -130,6 +151,7 @@ class Config:
         self.server = ServerConfig.from_env()
         self.logging = LoggingConfig.from_env()
         self.ai_service = AIServiceConfig.from_env()
+        self.redis = RedisConfig.from_env()
         
         # Additional Flask configuration
         self.flask_config = self._get_flask_config()
@@ -148,6 +170,20 @@ class Config:
             'JWT_COOKIE_SAMESITE': 'Lax',
             'SQLALCHEMY_DATABASE_URI': self.database.url,
             'SQLALCHEMY_TRACK_MODIFICATIONS': self.database.track_modifications,
+            
+            # =========================================================================
+            # SECURITY: CSRF CONFIGURATION (FLASK-WTF)
+            # =========================================================================
+            # We enable and configure CSRF protection at the application level.
+            # Using 'X-CSRF-Token' as the header name is a common standard for 
+            # single-page applications and AJAX-heavy frontends.
+            # =========================================================================
+            'WTF_CSRF_ENABLED': True,
+            'WTF_CSRF_SECRET_KEY': self.jwt.secret_key, # Reuse for simplicity, but ideally separate
+            'WTF_CSRF_HEADERS': ['X-CSRF-Token'],
+            'WTF_CSRF_SSL_STRICT': self.is_production(),
+            'WTF_CSRF_TIME_LIMIT': 3600, # 1 hour token validity
+            'WTF_CSRF_METHODS': ['POST', 'PUT', 'PATCH', 'DELETE'],
         }
     
     def validate(self) -> tuple[bool, list[str]]:
@@ -270,6 +306,10 @@ class Config:
         if self.logging.level not in valid_levels:
             errors.append(f"Invalid log level: {self.logging.level}. Must be one of {valid_levels}")
         
+        # Validate Redis configuration
+        if not self.redis.url.startswith('redis://') and not self.redis.url.startswith('rediss://'):
+            errors.append(f"Invalid Redis URL: {self.redis.url}. Must start with redis:// or rediss://")
+            
         return len(errors) == 0, errors
     
     def is_production(self) -> bool:
