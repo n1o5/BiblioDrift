@@ -8,97 +8,123 @@
   <link rel="stylesheet" href="../css/style_main.css"/>
   <link rel="stylesheet" href="../css/style-responsive.css"/>
   <style>
-    .playlist-section {
-      min-height: 100vh;
-      padding: 3rem 2rem;
-      background: var(--bg-primary, #0a0a0f);
+  :root {
+    --sp-bg: #f5f0e8;
+    --sp-card: #ffffff;
+    --sp-border: #d4c9b0;
+    --sp-text: #2c2416;
+    --sp-text-muted: #6b5d4f;
+    --sp-accent: #8b6914;
+    --sp-btn-bg: transparent;
+    --sp-btn-active: #8b6914;
+    --sp-btn-active-text: #ffffff;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --sp-bg: #0a0a0f;
+      --sp-card: #12121a;
+      --sp-border: #2a2a3e;
+      --sp-text: #e8e0d0;
+      --sp-text-muted: #9a8e7e;
+      --sp-accent: #c9a84c;
+      --sp-btn-bg: transparent;
+      --sp-btn-active: #c9a84c;
+      --sp-btn-active-text: #0a0a0f;
     }
-    .playlist-header {
-      text-align: center;
-      margin-bottom: 2.5rem;
-    }
-    .playlist-header h1 {
-      font-family: 'Georgia', serif;
-      color: var(--accent-gold, #c9a84c);
-      font-size: 2.2rem;
-      margin-bottom: 0.5rem;
-    }
-    .playlist-header p {
-      color: var(--text-muted, #888);
-      font-size: 0.95rem;
-    }
-    .mood-tabs {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 0.8rem;
-      margin-bottom: 2.5rem;
-    }
-    .mood-btn {
-      padding: 0.5rem 1.2rem;
-      border: 1px solid var(--accent-gold, #c9a84c);
-      border-radius: 20px;
-      background: transparent;
-      color: var(--accent-gold, #c9a84c);
-      font-size: 0.9rem;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .mood-btn:hover, .mood-btn.active {
-      background: var(--accent-gold, #c9a84c);
-      color: #0a0a0f;
-      font-weight: 600;
-    }
-    .playlist-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-    .playlist-card {
-      background: var(--card-bg, #12121a);
-      border: 1px solid var(--border-color, #2a2a3e);
-      border-radius: 16px;
-      overflow: hidden;
-      display: none;
-    }
-    .playlist-card.visible { display: block; }
-    .playlist-card iframe {
-      width: 100%;
-      border: none;
-      border-radius: 16px;
-    }
-    .card-label {
-      padding: 0.8rem 1rem 1rem;
-      color: var(--text-secondary, #ccc);
-      font-size: 0.85rem;
-    }
-    .back-link {
-      display: block;
-      text-align: center;
-      margin-top: 2rem;
-      color: var(--accent-gold, #c9a84c);
-      text-decoration: none;
-      font-size: 0.9rem;
-    }
-    .back-link:hover { text-decoration: underline; }
-  </style>
+  }
+
+  .playlist-section {
+    min-height: 100vh;
+    padding: 3rem 2rem;
+    background: var(--sp-bg);
+  }
+  .playlist-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+  .playlist-header h1 {
+    font-family: 'Georgia', serif;
+    color: var(--sp-accent);
+    font-size: 2.2rem;
+    margin-bottom: 0.5rem;
+  }
+  .playlist-header p {
+    color: var(--sp-text-muted);
+    font-size: 0.95rem;
+  }
+  .mood-tabs {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-bottom: 2.5rem;
+  }
+  .mood-btn {
+    padding: 0.5rem 1.2rem;
+    border: 1px solid var(--sp-accent);
+    border-radius: 20px;
+    background: var(--sp-btn-bg);
+    color: var(--sp-accent);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mood-btn:hover, .mood-btn.active {
+    background: var(--sp-btn-active);
+    color: var(--sp-btn-active-text);
+    font-weight: 600;
+  }
+  .playlist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .playlist-card {
+    background: var(--sp-card);
+    border: 1px solid var(--sp-border);
+    border-radius: 16px;
+    overflow: hidden;
+    display: none;
+  }
+  .playlist-card.visible { display: block; }
+  .playlist-card iframe {
+    width: 100%;
+    border: none;
+    border-radius: 16px;
+  }
+  .card-label {
+    padding: 0.8rem 1rem 1rem;
+    color: var(--sp-text-muted);
+    font-size: 0.85rem;
+  }
+  .back-link {
+    display: block;
+    text-align: center;
+    margin-top: 2rem;
+    color: var(--sp-accent);
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+  .back-link:hover { text-decoration: underline; }
+</style>
 </head>
 <body>
 
 <section class="playlist-section">
   <div class="playlist-header">
-    <h1>🎵 Reading Playlists</h1>
+    <h1><i data-lucide="music"></i> Reading Playlists</h1>
     <p>Pick your mood and let the music set the atmosphere.</p>
   </div>
 
   <div class="mood-tabs">
     <button class="mood-btn active" onclick="filterMood('all')">All</button>
-    <button class="mood-btn" onclick="filterMood('dark-academia')">🕯 Dark Academia</button>
-    <button class="mood-btn" onclick="filterMood('rainy')">🌧 Rainy & Melancholy</button>
-    <button class="mood-btn" onclick="filterMood('cozy')">☕ Cozy Reads</button>
-    <button class="mood-btn" onclick="filterMood('fantasy')">🧙 Fantasy</button>
+  <button class="mood-btn" onclick="filterMood('dark-academia')">Dark Academia</button>
+  <button class="mood-btn" onclick="filterMood('rainy')">Rainy & Melancholy</button>
+  <button class="mood-btn" onclick="filterMood('cozy')">Cozy Reads</button>
+  <button class="mood-btn" onclick="filterMood('fantasy')">Fantasy</button>
   </div>
 
   <div class="playlist-grid">
@@ -107,28 +133,28 @@
       <iframe src="https://open.spotify.com/embed/playlist/3dChPOWNMblJlIFqEaWdle?utm_source=generator&theme=0"
         height="352" allowfullscreen allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
         loading="lazy"></iframe>
-      <div class="card-label">🕯 Dark Academia — Classical & Orchestral</div>
+      <div class="card-label">Dark Academia — Classical & Orchestral</div>
     </div>
 
     <div class="playlist-card visible" data-mood="rainy">
       <iframe src="https://open.spotify.com/embed/playlist/37i9dQZF1DX8ymr6UES7vc?utm_source=generator&theme=0"
         height="352" allowfullscreen allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
         loading="lazy"></iframe>
-      <div class="card-label">🌧 Rainy & Melancholy — Lo-fi Rain Ambience</div>
+      <div class="card-label">Rainy & Melancholy — Lo-fi Rain Ambience</div>
     </div>
 
     <div class="playlist-card visible" data-mood="cozy">
       <iframe src="https://open.spotify.com/embed/playlist/37i9dQZF1DX4WYpdgoIcn6?utm_source=generator&theme=0"
         height="352" allowfullscreen allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
         loading="lazy"></iframe>
-      <div class="card-label">☕ Cozy Reads — Cafe Jazz & Acoustic</div>
+      <div class="card-label">Cozy Reads — Cafe Jazz & Acoustic</div>
     </div>
 
     <div class="playlist-card visible" data-mood="fantasy">
       <iframe src="https://open.spotify.com/embed/playlist/37i9dQZF1DX7EF8wVxBVhG?utm_source=generator&theme=0"
         height="352" allowfullscreen allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
         loading="lazy"></iframe>
-      <div class="card-label">🧙 Fantasy — Cinematic Soundtracks</div>
+      <div class="card-label">Fantasy — Cinematic Soundtracks</div>
     </div>
 
   </div>
@@ -149,6 +175,7 @@
     });
   }
 </script>
-
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>
