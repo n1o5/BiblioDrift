@@ -385,8 +385,7 @@ class Config:
         
         return (
             flask_env == 'production' or 
-            app_env == 'production' or 
-            not self.server.debug
+            app_env == 'production' 
         )
     
     def is_development(self) -> bool:
