@@ -25,8 +25,8 @@ from datetime import datetime, timedelta, timezone
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from sanitizer import sanitize_payload
-from reader_identity.routes import reader_identity_bp
+from backend.sanitizer import sanitize_payload
+from backend.reader_identity.routes import reader_identity_bp
 
 # Load environment variables from config directory based on APP_ENV
 env = os.getenv('APP_ENV', 'development')
@@ -2405,48 +2405,9 @@ def delete_price_alert(alert_id):
 with app.app_context():
     db.create_all()
 
-@app.route('/api/v1/books', methods=['GET'])
-@app.route('/api/books', methods=['GET'])
-def get_books():
-    query = request.args.get('q')
-    if not query:
-        return jsonify({"error": "Query parameter 'q' is required"}), 400
-
-    try:
-        max_results = int(request.args.get('maxResults', 10))
-    except ValueError:
-        max_results = 10
-
-    api_key = os.getenv('GOOGLE_BOOKS_API_KEY')
-    allowed_params = [
-        'q', 'maxResults', 'printType', 'langRestrict', 'orderBy',
-        'projection', 'filter', 'download', 'startIndex', 'fields'
-    ]
-
-    params = {}
-    for key, value in request.args.items():
-        if key in allowed_params:
-            params[key] = value
-
-    params['q'] = query
-    params['maxResults'] = str(max_results)
-    if api_key:
-        params['key'] = api_key
-
-    try:
-        response = requests.get(
-            'https://www.googleapis.com/books/v1/volumes',
-            params=params,
-            timeout=8
-        )
-        response.raise_for_status()
-        return jsonify(response.json())
-    except requests.exceptions.RequestException as e:
-        logger.error('Google Books request failed: %s', e)
-        return jsonify({"error": "Failed to fetch books from Google Books"}), 502
-    except Exception as e:
-        logger.exception('Unexpected error fetching books')
-        return jsonify({"error": "Failed to fetch books"}), 500
+# NOTE: Book search is performed directly from the frontend using the Google Books API.
+# The old backend proxy endpoint /api/books has been removed to avoid unnecessary
+# load on the backend server.
 
 if __name__ == '__main__':
     server_config = app_config.server
