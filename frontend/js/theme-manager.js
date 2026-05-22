@@ -163,6 +163,7 @@ function setTheme(themeName) {
     
     // Store mood theme separately so we don't break the light/dark mode preference!
     localStorage.setItem("bibliodrift_mood", themeName);
+    if (window.appStore) window.appStore.setState({ currentTheme: themeName });
 }
 
 /**

@@ -84,6 +84,33 @@ const moodAnalysisCache = new Map();
 
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
+/**
+ * Centralized Publish-Subscribe State Store
+ */
+class Store {
+    constructor(initialState = {}) {
+        this.state = initialState;
+        this.listeners = [];
+    }
+    getState() { return this.state; }
+    setState(updater) {
+        const newState = typeof updater === 'function' ? updater(this.state) : updater;
+        this.state = { ...this.state, ...newState };
+        this.notify();
+    }
+    subscribe(listener) {
+        this.listeners.push(listener);
+        return () => { this.listeners = this.listeners.filter(l => l !== listener); };
+    }
+    notify() { this.listeners.forEach(listener => listener(this.state)); }
+}
+
+window.appStore = new Store({
+    user: null,
+    libraryBooks: { current: [], want: [], finished: [] },
+    currentTheme: localStorage.getItem('bibliodrift_theme') || 'light'
+});
+
 let GOOGLE_API_KEY = '';
 
 /**
@@ -260,6 +287,7 @@ function clearStoredAuthState() {
     SafeStorage.remove('bibliodrift_user');
     SafeStorage.remove('bibliodrift_token');
     SafeStorage.remove('isLoggedIn');
+    window.appStore.setState({ user: null });
     authSessionPromise = null;
 }
 
@@ -334,6 +362,7 @@ async function verifyStoredAuthSession() {
                 const verifiedUser = data.user || storedUser;
                 if (verifiedUser) {
                     SafeStorage.set('bibliodrift_user', JSON.stringify(verifiedUser));
+                    window.appStore.setState({ user: verifiedUser });
                 }
                 SafeStorage.set('isLoggedIn', 'true');
                 return verifiedUser || null;
