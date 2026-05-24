@@ -461,6 +461,15 @@ class TestingConfig(Config):
         
         # Disable rate limiting for tests
         self.rate_limit.enabled = False
+        
+        # Ensure tests don't use real API credits
+        self.ai_service.openai_api_key = 'test-dummy-openai-key'
+        self.ai_service.groq_api_key = 'test-dummy-groq-key'
+        self.ai_service.gemini_api_key = 'test-dummy-gemini-key'
+        self.ai_service.google_books_api_key = 'test-dummy-google-books-key'
+        self.email.api_key = 'test-dummy-email-key'
+        self.storage.access_key = 'test-dummy-storage-access'
+        self.storage.secret_key = 'test-dummy-storage-secret'
 
 
 def get_config() -> Config:

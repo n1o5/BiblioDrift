@@ -793,6 +793,142 @@ def get_csrf_token():
     token = generate_csrf()
     return success_response(data={"csrf_token": token})
 
+# =====================================================================
+# ENDPOINT: System Health & Environment Diagnostics
+# =====================================================================
+# This endpoint provides comprehensive health checks for the API, 
+# Database, Redis Cache, and external AI/Service Integrations.
+# 
+# Security & Compliance:
+# - In 'production', it returns only essential health status to prevent
+#   information leakage, which is critical for attack surface reduction.
+# - In 'development' or 'testing', it returns detailed configuration
+#   states, database connection metrics, and dummy key validations.
+# - Validates that 'testing' environments correctly utilize dummy API 
+#   keys to prevent accidental financial charges against real services.
+# - Automatically degrades system status from 200 OK to 503 Service 
+#   Unavailable if critical infrastructural components (DB, Cache) fail.
+# =====================================================================
+@app.route('/api/v1/health', methods=['GET'])
+def health_check():
+    """
+    Comprehensive system health and environment diagnostic check.
+    Behavior and verbosity scale dynamically according to the active environment config.
+    """
+    from sqlalchemy import text
+    import time
+    
+    # Initialize the base health response structure
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "environment": app_config.get_environment_name(),
+        "version": "1.0.0",
+        "maintenance_mode": os.getenv("MAINTENANCE_MODE", "false").lower() == "true"
+    }
+    
+    # 1. Database Connectivity & Latency Check
+    db_status = "unknown"
+    db_latency_ms = 0
+    try:
+        start_time = time.time()
+        # Execute a lightweight, read-only query to test the active connection pool
+        # This confirms that SQLAlchemy can successfully speak to the database
+        db.session.execute(text("SELECT 1"))
+        db_latency_ms = round((time.time() - start_time) * 1000, 2)
+        db_status = "connected"
+    except Exception as e:
+        logger.error(f"Health Check: Database connection failed: {e}")
+        db_status = "disconnected"
+        health_status["status"] = "degraded"
+        # Only append specific error messages in non-production environments
+        if not app_config.is_production():
+            health_status["db_error"] = str(e)
+            
+    # 2. Redis Cache Connectivity Check
+    # Important for rate limiting and temporary data storage
+    redis_status = "unknown"
+    try:
+        # Check if the cache service was successfully initialized and bound to a client
+        if hasattr(cache_service, 'redis_client') and cache_service.redis_client:
+            if cache_service.redis_client.ping():
+                redis_status = "connected"
+            else:
+                redis_status = "unresponsive"
+                health_status["status"] = "degraded"
+        else:
+            redis_status = "disabled"
+    except Exception as e:
+        logger.error(f"Health Check: Redis connection failed: {e}")
+        redis_status = "disconnected"
+        health_status["status"] = "degraded"
+        if not app_config.is_production():
+            health_status["redis_error"] = str(e)
+    
+    # Assemble core services status payload
+    health_status["services"] = {
+        "database": {
+            "status": db_status,
+            "latency_ms": db_latency_ms
+        },
+        "redis_cache": {
+            "status": redis_status
+        }
+    }
+    
+    # 3. Environment-Specific Detailed Diagnostics
+    # In non-production environments, we expose more detailed configuration
+    # data to assist developers, CI/CD pipelines, and integration tests.
+    if not app_config.is_production():
+        # Validate AI Services configuration without exposing full keys
+        ai_services_state = {
+            "openai_configured": bool(app_config.ai_service.openai_api_key),
+            "groq_configured": bool(app_config.ai_service.groq_api_key),
+            "gemini_configured": bool(app_config.ai_service.gemini_api_key),
+            "google_books_configured": bool(app_config.ai_service.google_books_api_key)
+        }
+        
+        # Check if dummy test keys are active (from TestingConfig)
+        is_using_dummy_keys = (
+            app_config.ai_service.openai_api_key == 'test-dummy-openai-key' or
+            app_config.ai_service.groq_api_key == 'test-dummy-groq-key' or
+            app_config.email.api_key == 'test-dummy-email-key'
+        )
+        
+        health_status["diagnostics"] = {
+            "db_url_scheme": str(app_config.database.url).split("://")[0] if app_config.database.url else "none",
+            "rate_limiting_enabled": app_config.rate_limit.enabled,
+            "log_level": app_config.logging.level,
+            "ai_services": ai_services_state,
+            "is_using_dummy_keys": is_using_dummy_keys,
+            "security": {
+                "csrf_enabled": app.config.get('WTF_CSRF_ENABLED', False),
+                "cors_origins": _cors_origins,
+                "jwt_cookie_secure": app.config.get('JWT_COOKIE_SECURE', False)
+            }
+        }
+        
+        # Defensive Check: Add critical warning if testing in an environment 
+        # that explicitly should use dummy keys, but real ones are engaged.
+        if app_config.get_environment_name() in ['test', 'testing'] and not is_using_dummy_keys:
+            if "warnings" not in health_status["diagnostics"]:
+                health_status["diagnostics"]["warnings"] = []
+            health_status["diagnostics"]["warnings"].append(
+                "CRITICAL: Testing environment is active but dummy API keys are NOT engaged. Real credits may be consumed."
+            )
+            
+    # Return 503 Service Unavailable if core services are severely degraded
+    # Return 200 OK if system is healthy or experiencing minor non-critical issues
+    http_status = 200 if health_status["status"] == "healthy" else 503
+    
+    # If the system is explicitly put into maintenance mode, return 503
+    if health_status["maintenance_mode"]:
+        http_status = 503
+        health_status["status"] = "maintenance"
+        health_status["message"] = "System is currently undergoing scheduled maintenance."
+    
+    return jsonify(health_status), http_status
+
 @app.route('/')
 def index():
     """Simple index page showing available API endpoints."""
