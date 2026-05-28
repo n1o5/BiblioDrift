@@ -84,10 +84,14 @@ from password_reset_service import (
     request_password_reset,
     reset_password_with_token,
 )
+from email_service import (
+    build_password_reset_url,
+    is_email_configured,
+    send_password_reset_email,
+)
 from collections import defaultdict, deque
 from math import ceil
 from time import time
-from urllib.parse import quote
 from error_responses import (
     ErrorCodes, error_response, success_response,
     validation_error, missing_fields_error, invalid_json_error,
@@ -1975,20 +1979,36 @@ def forgot_password(validated_data):
             logger.error("forgot-password database error: %s", e, exc_info=True)
 
         response_data = {"message": FORGOT_PASSWORD_MESSAGE}
+        frontend_base = os.getenv('FRONTEND_ORIGIN', 'http://127.0.0.1:5500').rstrip('/')
+        email_config = app_config.email
 
-        if plain_token and app_config.is_development():
-            frontend_base = os.getenv(
-                'FRONTEND_ORIGIN',
-                'http://127.0.0.1:5500',
-            ).rstrip('/')
-            response_data["reset_url"] = (
-                f"{frontend_base}/pages/auth.html?token={quote(plain_token)}"
-            )
-            logger.info(
-                "Dev password reset link for %s: %s",
-                validated_data.email,
-                response_data["reset_url"],
-            )
+        if plain_token:
+            reset_url = build_password_reset_url(plain_token, frontend_base)
+            if is_email_configured(email_config):
+                send_result = send_password_reset_email(
+                    validated_data.email,
+                    reset_url,
+                    email_config,
+                )
+                if not send_result.ok:
+                    logger.error(
+                        "Password reset email not sent for %s: %s",
+                        validated_data.email,
+                        send_result.detail,
+                    )
+            elif app_config.is_development():
+                response_data["reset_url"] = reset_url
+                logger.info(
+                    "Dev password reset link for %s (email not configured): %s",
+                    validated_data.email,
+                    reset_url,
+                )
+            elif app_config.is_production():
+                logger.warning(
+                    "Password reset token created but EMAIL_* is not configured; "
+                    "user %s will not receive mail.",
+                    validated_data.email,
+                )
 
         return success_response(data=response_data)
     except Exception as e:
